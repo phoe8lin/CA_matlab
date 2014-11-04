@@ -1,0 +1,357 @@
+%
+%
+%参考文献;大型公共场所人员疏散模型研究_考虑个体特性和从众行为
+%设定矩阵m*n为1矩阵，设定初始人数
+m = 62;
+n = 62;
+k = 300;
+a = zeros(m,n);
+for x=1:m
+    
+    for y=1:n
+        a(x,y)=1;
+    end
+end
+
+%障碍物设定（手工设定）,比如第row行的a1至a2列设定为0
+row = 55;   % row设定应小于m !!!!!!
+a1 = 25;     % a1设定应小于a2 !!!!!!
+a2 = 45;    % a2设定应小于n  !!!!!!
+%b1 = ;
+%b2 = ;
+%column = ;
+a(row,a1:a2) = 0;   %第row行a1到a2个元素设定成为障碍物
+%a(b1:b2,column) = 0  %第column列的b1行到b2列设定为障碍物
+
+%墙壁设定以及出口设定
+a(1,1:n) = 0;
+a(1:m,1) = 0;
+a(m,1:n) = 0;
+a(1:m,n) = 0;
+w1 = 30;     % w1应小于w2 !!!!!!!
+w2 = 32;     % w2应小于n !!!!!!!
+a(m,w1:w2) = 1;
+
+%初始人员组成，熟悉度设定
+kdis = 0.3;             %熟悉程度 dis:distance  位置吸引力
+kdir = 0.7;             %陌生程度 dir:direction 方向吸引力
+yngcpt = sqrt(2);       %年轻人的网格竞争力
+oldcpt = 1;             %弱者的网格竞争力
+yng = 240;              %年轻人人数
+old = k - yng;          %老年人人数
+
+%在1矩阵中随机生成固定为k的0点
+for count = 1:k
+    i = round(unifrnd(1,m));
+    j = round(unifrnd(1,n));
+    if a(i,j) == 0
+        continue
+    else
+        a(i,j) = 0;
+    end
+end
+
+imshow(a)
+%个体行进路线的逻辑判定
+%遍历网格（从2-（m-1）行，从2-（n-1）列），去除障碍物设定
+% 便利条件是网格当中还有人
+
+% 对“正常网格“进行分析
+% 方向吸引力按照顺时针方向依次记为 dir1(x, y),dir2(x, y),dir3(x, y),dir4(x, y)
+% 网格的位置吸引力概率 pdis()也有四个，分别是pdis(x+1, y),pdis(x,
+% y+1),pdis(x, y+1),pdis(x-1, y)，都是与占据网格相邻的四个网格的吸引力
+while k
+    for x = 1:m
+        for y = 1:n
+            while a(x, y) == 0;
+                if (x == row) && (y >= a1)  && (y <= a2)     %避开障碍物，不对障碍物区间进行判断
+                    continue
+                elseif (x >= 6) && (x <= 55) && (y >= 6) &&(y <= 55)      % 分析区域1
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1); 
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y) - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4) - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y) - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    % p1是(x,y)上面那个点的总吸引力值，其他同样
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                        break;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                        break;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                        break;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                        break;
+                    end
+                elseif (x>=2) && (x<6) && (y>=6) && (y<=55)  % 检验区域2
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - 0 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4) - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y) - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = 0;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                elseif (x>=2) && (x<6) && (1<y) && (y<6)   % 检验区域3
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - 0 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4) - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y) - 0;
+                    pdir1 = 0;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = 0;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                    
+                    % 检验区域4
+                elseif (x>1) && (x<6) && (y>55) &&(y<=61)
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - 0 - 0 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y) - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = 0;
+                    pdir2 = 0;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                    % 检验区域5
+                elseif (x>55) && (x<=61) && (y>1) && (y<6)
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y) - a(x, y+1) - a(x, y+2) - a(x, y+3) - 0 - 0;
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = 0;
+                    pdir4 = 0;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                   
+                    % 检验区域6
+                elseif (x>55) && (x<=61) && (y>55) && (y<=61)
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y) - 0 - 0 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = 0;
+                    pdir3 = 0;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                    % 检验区域7
+                elseif (x >= 6) && (x <= 55) && (y >= 2) && (y <= 6)
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y) - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4) - 0 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y);
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = 0;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                    
+                    %检验区域8
+                elseif (x>6) && (x<55) && (y>55) && (y<=61)
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y)  - 0 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y) - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = 0;
+                    pdir3 = (4 - a(x+1, y) - a(x+2, y) - a(x+3, y) - a(x+4, y))/pdir;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                    
+                    %检验区域9——最后一个出口区域
+                else
+                    pdis1 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x + 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis2 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y - 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis3 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x - 1)^2 + (n - y)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdis4 = (sqrt(n^2 + ((w1 + w2)/2)^2) - sqrt(((w1 + w2)/2 - x)^2 + (n - y + 1)^2))/(sqrt(n^2 + ((w1 + w2)/2)^2) - 1);
+                    pdir = 16 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y) - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4) - 0 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4);
+                    pdir1 = (4 - a(x-1, y) - a(x-2, y) - a(x-3, y) - a(x-4, y))/pdir;
+                    pdir2 = (4 - a(x, y+1) - a(x, y+2) - a(x, y+3) - a(x, y+4))/pdir;
+                    pdir3 = 0;
+                    pdir4 = (4 - a(x, y-1) - a(x, y-2) - a(x, y-3) - a(x, y-4))/pdir;
+                    p1 = a(x-1,y) * (kdis * pdis1 + kdir * pdir1);
+                    p2 = a(x,y+1) * (kdis * pdis2 + kdir * pdir2);
+                    p3 = a(x+1,y) * (kdis * pdis3 + kdir * pdir3);
+                    p4 = a(x,y-1) * (kdis * pdis4 + kdir * pdir4);
+                    % 从四个p值当中找出最大值，并将此点的值设为0，原节点设为1
+                    if p1 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x-1,y) = 0;
+                    elseif p2 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x,y+1) = 0;
+                    elseif p3 == max(p1,p2,p3,p4)
+                        a(x,y) = 1;
+                        a(x+1,y) = 0;
+                    else
+                        a(x,y) = 1;
+                        a(x,y-1) = 0;
+                    end
+                     
+                    % 检测出口是否有人出口区做人数减一
+                    if (x == m) && ((y == w1) || (y == w2))
+                        a(x,y) = 1;
+                        k = k - 1;
+                        imshow(a)
+                        pause(1);
+                    else
+                        continue
+                    end
+                    
+                    
+                end
+            end
+        end
+    end
+end
